@@ -1,6 +1,6 @@
 script_name('[ cmarket.lua ]')
 script_author('xraggge.')
-script_version('0.2')
+script_version('0.3')
 
 local samp = require('lib.samp.events')
 local inicfg = require('inicfg')
