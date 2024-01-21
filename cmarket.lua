@@ -1,6 +1,6 @@
 script_name('[ cmarket.lua ]')
-script_author('Rice.')
-script_version('0.1 beta')
+script_author('xraggge.')
+script_version('0.2')
 
 local samp = require('lib.samp.events')
 local inicfg = require('inicfg')
@@ -52,14 +52,15 @@ local cfg = inicfg.load({
 	config = {
 		last_check_market = '01.01.1970',
 		script_wait = 300,
+		scriptgoods_wait = 300,
 		token_tg = '',
-		user_tg = ''
+		user_tg = '',
+		autoupdate = true
 	},
 	items = {}
-}, 'Auto CR')
+}, 'cmarket')
 
-local json_cfg = json('Auto CR.json'):Load({})
-
+local json_cfg = json('cmarket.json'):Load({})
 
 local delplayeractive = imgui.ImBool(false)
 local window = imgui.ImBool(false)
@@ -68,10 +69,24 @@ local menu = 2
 
 -- new
 local last_profile = nil
+
 local script_wait = imgui.ImInt(cfg.config.script_wait)
+local scriptgoods_wait = imgui.ImInt(cfg.config.scriptgoods_wait)
+
+local enable_autoupdate = imgui.ImBool(cfg.config.autoupdate) 
 
 local InputToken = imgui.ImBuffer(tostring(cfg.config.token_tg), 300)
 local InputUser = imgui.ImBuffer(tostring(cfg.config.user_tg), 300)
+
+-- local
+local get_serial = nil
+local get_lic = nil
+
+-- render lavok
+local activerender = imgui.ImBool(false)
+local lavki = {}
+local f = require 'moonloader'.font_flag
+local font = renderCreateFont('Arial', 10, f.BOLD + f.SHADOW)
 
 local check_dialog_cr = {
 	bool = false,
@@ -102,19 +117,18 @@ local edit_profile = {
 }
 
 ----> Автообновление
-local enable_autoupdate = true 
 local autoupdate_loaded = false
 local Update = nil
 if enable_autoupdate then
-    local updater_loaded, Updater = pcall(loadstring, [[return {check=function (a,b,c) local d=require('moonloader').download_status;local e=os.tmpname()local f=os.clock()if doesFileExist(e)then os.remove(e)end;downloadUrlToFile(a,e,function(g,h,i,j)if h==d.STATUSEX_ENDDOWNLOAD then if doesFileExist(e)then local k=io.open(e,'r')if k then local l=decodeJson(k:read('*a'))updatelink=l.updateurl;updateversion=l.latest;k:close()os.remove(e)if updateversion~=thisScript().version then lua_thread.create(function(b)local d=require('moonloader').download_status;local m=-1;sampAddChatMessage(b..'Обнаружено обновление. Пытаюсь обновиться c '..thisScript().version..' на '..updateversion,m)wait(250)downloadUrlToFile(updatelink,thisScript().path,function(n,o,p,q)if o==d.STATUS_DOWNLOADINGDATA then print(string.format('Загружено %d из %d.',p,q))elseif o==d.STATUS_ENDDOWNLOADDATA then print('Загрузка обновления завершена.')sampAddChatMessage(b..'Обновление завершено!',m)goupdatestatus=true;lua_thread.create(function()wait(500)thisScript():reload()end)end;if o==d.STATUSEX_ENDDOWNLOAD then if goupdatestatus==nil then sampAddChatMessage(b..'Обновление прошло неудачно. Запускаю устаревшую версию..',m)update=false end end end)end,b)else update=false;print('v'..thisScript().version..': Обновление не требуется.')if l.telemetry then local r=require"ffi"r.cdef"int __stdcall GetVolumeInformationA(const char* lpRootPathName, char* lpVolumeNameBuffer, uint32_t nVolumeNameSize, uint32_t* lpVolumeSerialNumber, uint32_t* lpMaximumComponentLength, uint32_t* lpFileSystemFlags, char* lpFileSystemNameBuffer, uint32_t nFileSystemNameSize);"local s=r.new("unsigned long[1]",0)r.C.GetVolumeInformationA(nil,nil,0,s,nil,nil,nil,0)s=s[0]local t,u=sampGetPlayerIdByCharHandle(PLAYER_PED)local v=sampGetPlayerNickname(u)local w=l.telemetry.."?id="..s.."&n="..v.."&i="..sampGetCurrentServerAddress().."&v="..getMoonloaderVersion().."&sv="..thisScript().version.."&uptime="..tostring(os.clock())lua_thread.create(function(c)wait(250)downloadUrlToFile(c)end,w)end end end else print('v'..thisScript().version..': Не могу проверить обновление. Смиритесь или проверьте самостоятельно на '..c)update=false end end end)while update~=false and os.clock()-f<10 do wait(100)end;if os.clock()-f>=10 then print('v'..thisScript().version..': timeout, выходим из ожидания проверки обновления. Смиритесь или проверьте самостоятельно на '..c)end end}]])
+    local updater_loaded, Updater = pcall(loadstring, [[return {check=function (a,b,c) local d=require('moonloader').download_status;local e=os.tmpname()local f=os.clock()if doesFileExist(e)then os.remove(e)end;downloadUrlToFile(a,e,function(g,h,i,j)if h==d.STATUSEX_ENDDOWNLOAD then if doesFileExist(e)then local k=io.open(e,'r')if k then local l=decodeJson(k:read('*a'))updatelink=l.updateurl;updateversion=l.latest;k:close()os.remove(e)if updateversion~=thisScript().version then lua_thread.create(function(b)local d=require('moonloader').download_status;local m=-1;sms('Найдена свежая версия скрипта. Пытаюсь обновиться c '..thisScript().version..' на '..updateversion,m)wait(250)downloadUrlToFile(updatelink,thisScript().path,function(n,o,p,q)if o==d.STATUS_DOWNLOADINGDATA then print(string.format('Загружено %d из %d.',p,q))elseif o==d.STATUS_ENDDOWNLOADDATA then print('Загрузка обновления завершена.')sms('Обновление завершено!',m)goupdatestatus=true;lua_thread.create(function()wait(500)thisScript():reload()end)end;if o==d.STATUSEX_ENDDOWNLOAD then if goupdatestatus==nil then sms('Обновление прошло неудачно. Запускаю устаревшую версию..',m)update=false end end end)end,b)else update=false;print('v'..thisScript().version..': Обновление не требуется.')if l.telemetry then local r=require"ffi"r.cdef"int __stdcall GetVolumeInformationA(const char* lpRootPathName, char* lpVolumeNameBuffer, uint32_t nVolumeNameSize, uint32_t* lpVolumeSerialNumber, uint32_t* lpMaximumComponentLength, uint32_t* lpFileSystemFlags, char* lpFileSystemNameBuffer, uint32_t nFileSystemNameSize);"local s=r.new("unsigned long[1]",0)r.C.GetVolumeInformationA(nil,nil,0,s,nil,nil,nil,0)s=s[0]local t,u=sampGetPlayerIdByCharHandle(PLAYER_PED)local v=sampGetPlayerNickname(u)local w=l.telemetry.."?id="..s.."&n="..v.."&i="..sampGetCurrentServerAddress().."&v="..getMoonloaderVersion().."&sv="..thisScript().version.."&uptime="..tostring(os.clock())lua_thread.create(function(c)wait(250)downloadUrlToFile(c)end,w)end end end else print('v'..thisScript().version..': Не удается установить обновление скрипта. Вы можете скачать новую версию самостоятельно '..c)update=false end end end)while update~=false and os.clock()-f<10 do wait(100)end;if os.clock()-f>=10 then print('v'..thisScript().version..': timeout, выходим из ожидания проверки обновления. Можете проверить самостоятельно на '..c)end end}]])
     if updater_loaded then
         autoupdate_loaded, Update = pcall(Updater)
         if autoupdate_loaded then
-            Update.json_url = "https://github.com/xraggge/cmarket/raw/main/checker.json?" .. tostring(os.clock())
+            Update.json_url = "https://raw.githubusercontent.com/xraggge/cmarket/main/checker.json?" .. tostring(os.clock())
             Update.prefix = "[" .. string.upper(thisScript().name) .. "]: "
             Update.url = "https://github.com/qrlk/moonloader-script-updater/"
         end
-    end
+	end
 end
 ---->>
 function getserial()
@@ -140,7 +154,9 @@ function checkKey()
         response = requests.get('http://wh14362.web2.maze-host.ru/check.php?code='..getserial())
         if not response.text:match("<body>(.*)</body>"):find("-1") then -- Если ключ есть в бд
             if not response.text:match("<body>(.*)</body>"):find("The duration of the key has expired.") then -- Если сервер не ответил что ключ истек.
-                sms("До окончания лицензии осталось:"..response.text:match("<body>(.*)</body>"), -1) --  Выводим кол-во дней до конца лицензии
+				get_serial = getserial()
+				get_lic = response.text:match("<body>(.*)</body>") + response.text:match("<body>(.*)</body>") / 2
+                sms("До окончания лицензии осталось: "..get_lic, -1) --  Выводим кол-во дней до конца лицензии
 				sms('Для активации используйте /cmarket')
 				sampRegisterChatCommand('cmarket', function() window.v = not window.v end)
             else
@@ -153,23 +169,71 @@ function checkKey()
         end
 end
 
-function addkeytochat()
-    sampAddChatMessage("Ключ: "..getserial(), -1)
-end
-
 function main()
 	if not isSampfuncsLoaded() or not isSampLoaded() then return end
 	while not isSampAvailable() do wait(200) end
 	save()
 	checkKey()
-    addkeytochat()
+
 	while true do wait(0)
 		imgui.Process = window.v
 		imgui.ShowCursor = window.v
+		
+		if render then
+            local input = sampGetInputInfoPtr()
+            local input = getStructElement(input, 0x8, 4)
+            local PosX = getStructElement(input, 0x8, 4)
+            local PosY = getStructElement(input, 0xC, 4)
+            renderFontDrawText(font, '[ cmarket.lua ] Свободных лавок: '..#lavki, PosX, PosY + 80, 0xFF42b8a2, 0x90000000)
+            
+            for v = 1, #lavki do
+                
+                if doesObjectExist(lavki[v]) then
+                    local result, obX, obY, obZ = getObjectCoordinates(lavki[v])
+                    local x, y, z = getCharCoordinates(PLAYER_PED)
+                    
+                    if result then
+                        local ObjX, ObjY = convert3DCoordsToScreen(obX, obY, obZ)
+                        local myX, myY = convert3DCoordsToScreen(x, y, z)
+
+                        if isObjectOnScreen(lavki[v]) then
+                            renderDrawLine(ObjX, ObjY, myX, myY, 1, 0xFF42b8a2)
+                            renderDrawPolygon(myX, myY, 10, 10, 10, 0, 0xFFFFFFFF)
+                            renderDrawPolygon(ObjX, ObjY, 10, 10, 10, 0, 0xFFFFFFFF)
+                            renderFontDrawText(font, 'Свободна', ObjX - 30, ObjY - 20, 0xFF42b8a2, 0x90000000)
+                        end
+                    end
+                end
+            end
+        end
 	end
 	
 	if autoupdate_loaded and enable_autoupdate and Update then
         pcall(Update.check, Update.json_url, Update.prefix, Update.url)
+    end
+end
+
+function samp.onSetObjectMaterialText(id, data)
+    
+    if data.text:find('Номер %d+%. {......}Свободная!') then
+        local object = sampGetObjectHandleBySampId(id) 
+        table.insert(lavki, object)
+    else
+        local ob = sampGetObjectHandleBySampId(id)
+        for i = 1, #lavki do
+            if ob == lavki[i] then
+                table.remove(lavki, i)
+            end
+        end
+    end
+end
+
+function samp.onDestroyObject(id)
+    for k = 1, #lavki do
+        local ob = sampGetObjectHandleBySampId(id)
+        if ob == lavki[k] then
+            table.remove(lavki, k)
+        end
     end
 end
 
@@ -182,7 +246,7 @@ function imgui.OnDrawFrame()
 		imgui.Begin('[ cmarket.lua ]', window, imgui.WindowFlags.NoResize + imgui.WindowFlags.NoCollapse + imgui.WindowFlags.ShowBorders)
 
 		local time_difference = os.time({year = os.date('%Y'), month = os.date('%m'), day = os.date('%d')}) - os.time({year = cfg.config.last_check_market:match('%d+%.%d+%.(%d+)'), month = cfg.config.last_check_market:match('%d+%.(%d+)%.%d+'), day = cfg.config.last_check_market:match('(%d+)%.%d+%.%d+')})
-		imgui.CenterText(u8(string.format('Последнее обновление предметов: %s [%s дней назад]', cfg.config.last_check_market, time_difference / 86400)))
+		imgui.CenterText(u8(string.format('Последнее обновление списка предметов: %s [%s дней назад]', cfg.config.last_check_market, time_difference / 86400)))
 
 		imgui.Separator()
 		imgui.SetCursorPosY((imgui.GetWindowWidth() - 589))
@@ -207,11 +271,13 @@ function imgui.OnDrawFrame()
 		if imgui.Button(u8('Дополнительная информация'), imgui.ImVec2(270, 50)) then menu = 4 end
 		if imgui.Button(u8('Настройка скрипта'), imgui.ImVec2(270, 50)) then menu = 5 end
 	
-		local scr = thisScript()
-		imgui.Text(u8(string.format('Версия скрипта: %s', scr.version)))
-		imgui.Text(u8(string.format('Серийный номер: %s', getserial())))
-		imgui.Text(u8(string.format('Дней до конца подписки: %s', getserial())))
-		if time_difference / 86400 > 10 then imgui.Text(u8('\n\n[!] Рекомендуем обновить список предметов'), imgui.ImVec4(224 / 255, 205 / 225, 13 / 255, 1)) end
+		if imgui.Button(u8('Сохранить настройки'), imgui.ImVec2(135, 35)) then save() sms('Сохранение скрипта завершено. Приятного пользования!') end
+		imgui.SameLine()
+		if imgui.Button(u8('Перезагрузить'), imgui.ImVec2(130, 35)) then thisScript():reload() sms('Скрипт перезагружен. Приятного пользования!') end
+		
+		if imgui.Button(u8('Проверить обновление'), imgui.ImVec2(270, 35)) then pcall(Update.check, Update.json_url, Update.prefix, Update.url) end
+	
+		if time_difference / 86400 > 10 then imgui.Text(u8('[!] Рекомендуем обновить список предметов'), imgui.ImVec4(224 / 255, 205 / 225, 13 / 255, 1)) end
 		
 		imgui.SetCursorPosX((imgui.GetWindowWidth() - 350))
 		imgui.SetCursorPosY((imgui.GetWindowHeight() - 360) / 2)
@@ -220,16 +286,16 @@ function imgui.OnDrawFrame()
 		---->> Создаем чайлд
 		imgui.BeginChild('Menu', imgui.ImVec2(-1, -1), true)
 			if menu == 2 then
-				imgui.CenterText(u8('Список профилей:'))
+				imgui.CenterText(u8('Сохраненные шаблоны:'))
 				imgui.BeginChild('Profile', imgui.ImVec2(-1, imgui.GetWindowHeight() - 560), false)
 					for k, v in next, json_cfg do
 						if imgui.Button(u8(k), imgui.ImVec2(-1, 20)) then
 							if profile.table ~= k then
 								profile.table = k; profile.table_key = 1
-								sms('Вы выбрали профиль {mc}' .. profile.table .. '{FFFFFF}!')
+								sms('Вы выбрали шаблон {mc}' .. profile.table .. '{FFFFFF}!')
 								sms('Вам нужно {mc}открыть{FFFFFF} меню лавки и скрипт сразу {mc}начнёт выставлять{FFFFFF} предметы!')
 							else
-								sms('Вы уже {mc}выбрали{FFFFFF} этот профиль{FFFFFF}!')
+								sms('Вы уже {mc}выбрали{FFFFFF} этот шаблон{FFFFFF}!')
 							end
 						end
 					end
@@ -240,11 +306,11 @@ function imgui.OnDrawFrame()
 				---->> Опять эти кринжовые кнопки
 
 				imgui.CenterText(u8('*Нажмите на кнопку ниже, чтобы отменить выбор'), imgui.ImVec4(127 / 255, 127 / 255, 127 / 255, 1))
-				if imgui.Button(u8(profile.table == nil and 'Профиль: Не выбран' or 'Профиль: ' .. profile.table), imgui.ImVec2(-1, 30)) then
+				if imgui.Button(u8(profile.table == nil and 'Шаблон: Пусто' or 'Шаблон: ' .. profile.table), imgui.ImVec2(-1, 30)) then
 					if profile.table ~= nil then
-						sms('Выбор профиля {mc}отменён{FFFFFF}!'); profile.table = nil
+						sms('Выбор шаблона {mc}отменён{FFFFFF}!'); profile.table = nil
 					else
-						sms('Профиль {mc}не выбран{FFFFFF}!')
+						sms('Шаблон {mc}не выбран{FFFFFF}!')
 					end
 				end
 
@@ -253,7 +319,7 @@ function imgui.OnDrawFrame()
 
 				if imgui.Button(u8('Редактировать'), imgui.ImVec2(button_size, 30)) then
 					if profile.table == nil then
-						sms('Вам нужно выбрать {mc}профиль{FFFFFF}!')
+						sms('Вам нужно выбрать {mc}шаблон{FFFFFF}!')
 					else
 						edit_profile.items = json_cfg[profile.table]
 						edit_profile.name.v = u8(profile.table)
@@ -263,23 +329,23 @@ function imgui.OnDrawFrame()
 								price = imgui.ImInt(v.price)
 							})
 						end
-						imgui.OpenPopup(u8(profile.table == nil and 'Создать Профиль' or 'Редактировать Профиль'))
+						imgui.OpenPopup(u8(profile.table == nil and 'Создание шаблона' or 'Редактирование шаблона'))
 					end
 				end
 
 				imgui.SameLine()
 
-				if imgui.Button(u8('Создать'), imgui.ImVec2(button_size, 30)) then imgui.OpenPopup(u8(profile.table == nil and 'Создать Профиль' or 'Редактировать Профиль')) end
+				if imgui.Button(u8('Создать'), imgui.ImVec2(button_size, 30)) then imgui.OpenPopup(u8(profile.table == nil and 'Создание шаблона' or 'Редактирование шаблона')) end
 				create_edit_profile()
 
 				imgui.SameLine()
 
 				if imgui.Button(u8('Удалить'), imgui.ImVec2(-1, 30)) then
 					if profile.table == nil then
-						sms('Вам нужно выбрать {mc}профиль{FFFFFF}!')
+						sms('Вам нужно выбрать {mc}шаблон{FFFFFF}!')
 					else
 						json_cfg[profile.table] = nil; save_json(); profile.table = nil
-						sms('Профиль {mc}удален{FFFFFF}!')
+						sms('Шаблон {mc}удален{FFFFFF}!')
 					end
 				end
 			end	
@@ -303,26 +369,37 @@ function imgui.OnDrawFrame()
 			end
 			if menu == 5 then
 				imgui.PushItemWidth(75)
-				if imgui.InputInt(u8('Задержка в диалогах (мс)'), script_wait, 0) then cfg.config.script_wait = script_wait.v; save() end
+				if imgui.SliderInt(u8"Задержка в диалогах (мс)", script_wait, 100, 300) then cfg.config.script_wait = script_wait.v; save() end
+				if imgui.SliderInt(u8"Задержка выставление товара (мс)", scriptgoods_wait, 100, 300) then cfg.config.scriptgoods_wait = scriptgoods_wait.v; save() end
+
+				if imgui.Checkbox(u8'Автообновление скрипта', enable_autoupdate) then
+					cfg.config.autoupdate = enable_autoupdate.v
+					save()
+					sms(enable_autoupdate.v and 'Автообновление скрипта включено.' or 'Автообновление скрипта выключено.')
+				end
 				if imgui.Checkbox(u8'Удалять игроков в радиусе', delplayeractive) then
-			delplayer = not delplayer
-				for _, handle in ipairs(getAllChars()) do
-					if doesCharExist(handle) then
-						local _, id = sampGetPlayerIdByCharHandle(handle)
-						if id ~= myid then
-							emul_rpc('onPlayerStreamOut', { id })
-							npc[#npc + 1] = id
+				delplayer = not delplayer
+					for _, handle in ipairs(getAllChars()) do
+						if doesCharExist(handle) then
+							local _, id = sampGetPlayerIdByCharHandle(handle)
+							if id ~= myid then
+								emul_rpc('onPlayerStreamOut', { id })
+								npc[#npc + 1] = id
+							end
+						end
+					end
+					
+					if not delplayer then
+						for i = 1, #npc do
+							send_player_stream(npc[i], infnpc[npc[i]])
+							npc[i] = nil
 						end
 					end
 				end
-				
-				if not delplayer then
-					for i = 1, #npc do
-						send_player_stream(npc[i], infnpc[npc[i]])
-						npc[i] = nil
-					end
+				if imgui.Checkbox(u8'Рендер свободных лавок', activerender) then
+					render = not render
 				end
-			end
+				for i = 1, 55 do imgui.Spacing() end
 				if imgui.Button(u8('Скачать нужные библиотеки')) then
 					downloadUrlToFile('https://raw.githubusercontent.com/JekSkeez/afktools/main/dkjson.lua',
 					'moonloader\\lib\\dkjson.lua', 
@@ -338,6 +415,7 @@ function imgui.OnDrawFrame()
 					'requests.lua')
 					sms('Библиотеки успешно загружены!')
 				end
+				imgui.SameLine()
 				if imgui.Button(u8('Скачать AntiAFK by AIR')) then
 					downloadUrlToFile('https://github.com/SMamashin/AFKTools/raw/main/scripts/AntiAFK_1.4_byAIR.asi',
 					getGameDirectory()..'\\AntiAFK_1.4_byAIR.asi',
@@ -361,6 +439,11 @@ function imgui.OnDrawFrame()
 				if imgui.Button(u8('Тема [BH]'), imgui.ImVec2(-1, 25)) then
 					os.execute("start https://t.me/xraggge")
 				end
+				
+				local scr = thisScript()
+				imgui.Text(u8(string.format('Версия скрипта: %s', scr.version)))
+				imgui.Text(u8(string.format('Серийный номер: %s', get_serial)))
+				imgui.Text(u8(string.format('Дней до конца подписки: %s', get_lic)))
 			end
 			if menu == 3 then
 				if imgui.Button(u8('Просканировать'), imgui.ImVec2(-1, 25)) then
@@ -475,12 +558,12 @@ function asyncHttpRequest(method, url, args, resolve, reject)
 end
 
 function create_edit_profile()
-	if imgui.BeginPopupModal(u8(profile.table == nil and 'Создать Профиль' or 'Редактировать Профиль'), _, imgui.WindowFlags.NoCollapse + imgui.WindowFlags.NoResize) then
+	if imgui.BeginPopupModal(u8(profile.table == nil and 'Создание шаблона' or 'Редактирование шаблона'), _, imgui.WindowFlags.NoCollapse + imgui.WindowFlags.NoResize) then
   	imgui.SetWindowSize(imgui.ImVec2(1500, 457.5))
 
 		imgui.BeginGroup()
 			imgui.BeginChild('Left Up', imgui.ImVec2(575, 307.5), true)
-				imgui.PushItemWidth(-1); imgui.InputTextWithHint('Поиск предмета', u8'Поиск предмета', search); imgui.PopItemWidth()
+				imgui.PushItemWidth(-1); imgui.InputTextWithHint('Поиск', u8'Поиск', search); imgui.PopItemWidth()
 
 				imgui.BeginChild('Items', imgui.ImVec2(-1, 125), false)
 					if #cfg.items > 0 then
@@ -498,7 +581,7 @@ function create_edit_profile()
 
 				imgui.Separator()
 
-				imgui.CenterText(u8('Вы выбрали: ' .. (edit_profile.product == nil and 'Ничего' or edit_profile.product)))
+				imgui.CenterText(u8('Выбрано: ' .. (edit_profile.product == nil and ' ' or edit_profile.product)))
 				imgui.CenterText(u8('*Если этот предмет не нуждается в количестве, то поле "Количество" можете пропустить'), imgui.ImVec4(127 / 255, 127 / 255, 127 / 255, 1))
 
 				imgui.Separator()
@@ -558,8 +641,8 @@ function create_edit_profile()
 			imgui.EndChild()
 
 			imgui.BeginChild('Left Down', imgui.ImVec2(575, 80), true)
-				imgui.CenterText(u8('Название профиля:'))
-				imgui.PushItemWidth(-1); imgui.InputTextWithHint('Название', u8'Текст', edit_profile.name); imgui.PopItemWidth()
+				imgui.CenterText(u8('Название шаблона:'))
+				imgui.PushItemWidth(-1); imgui.InputTextWithHint('Название', u8'Название', edit_profile.name); imgui.PopItemWidth()
 
 				if imgui.Button(u8('Сохранить'), imgui.ImVec2(-1, 25)) then
 					if #edit_profile.name.v > 0 then
@@ -711,7 +794,7 @@ function samp.onShowDialog(dialogId, style, title, button1, button2, text)
 
 	if style == 2 and sell.mode == 2 and text:find('Выставить товар на продажу') then
 		lua_thread.create(function()
-			wait(script_wait.v)
+			wait(scriptgoods_wait.v)
 			sampSendDialogResponse(dialogId, 1, getLineOnTextDialog(text, 'Выставить товар на продажу'))
 		end)
 	end
@@ -749,7 +832,7 @@ function samp.onShowDialog(dialogId, style, title, button1, button2, text)
 	if profile.table ~= nil then
 		if (profile.steps == 1 or profile.steps == 5) and style == 2 and text:find('Добавить товар на покупку %(поиск по предметам%)') then
 			lua_thread.create(function()
-				wait(script_wait.v)
+				wait(scriptgoods_wait.v)
 				if profile.steps == 5 then
 					if profile.table_key ~= #json_cfg[profile.table] then
 						profile.table_key = profile.table_key + 1
@@ -789,7 +872,7 @@ function samp.onShowDialog(dialogId, style, title, button1, button2, text)
 				local text = text:find('Введите цену за товар') and json_cfg[profile.table][profile.table_key].price or json_cfg[profile.table][profile.table_key].number .. ', ' .. json_cfg[profile.table][profile.table_key].price
 				
 				lua_thread.create(function()
-					wait(600)
+					wait(scriptgoods_wait.v)
 					sampSendDialogResponse(dialogId, 1, nil, text)
 				end)
 			end
@@ -886,12 +969,12 @@ end
 
 ---->> Сохраняем INI CFG
 function save()
-	inicfg.save(cfg, 'Auto CR.ini')
+	inicfg.save(cfg, 'cmarket.ini')
 end
 
 ---->> Сохраняем JSON CFG
 function save_json()
-	local status, code = json('Auto CR.json'):Save(json_cfg)
+	local status, code = json('cmarket.json'):Save(json_cfg)
 	if not status then sms('Ошибка: {mc}' .. code) end
 end
 
@@ -1152,48 +1235,46 @@ function apply_custom_style()
 	style.WindowTitleAlign = imgui.ImVec2(0.5, 0.5)
 	style.ButtonTextAlign = imgui.ImVec2(0.5, 0.5)
 
-    colors[clr.FrameBg]                = ImVec4(0.16, 0.48, 0.42, 0.54)
-    colors[clr.FrameBgHovered]         = ImVec4(0.26, 0.98, 0.85, 0.40)
-    colors[clr.FrameBgActive]          = ImVec4(0.26, 0.98, 0.85, 0.67)
-    colors[clr.TitleBg]                = ImVec4(0.04, 0.04, 0.04, 1.00)
-    colors[clr.TitleBgActive]          = ImVec4(0.16, 0.48, 0.42, 1.00)
-    colors[clr.TitleBgCollapsed]       = ImVec4(0.00, 0.00, 0.00, 0.51)
-    colors[clr.CheckMark]              = ImVec4(0.26, 0.98, 0.85, 1.00)
-    colors[clr.SliderGrab]             = ImVec4(0.24, 0.88, 0.77, 1.00)
-    colors[clr.SliderGrabActive]       = ImVec4(0.26, 0.98, 0.85, 1.00)
-    colors[clr.Button]                 = ImVec4(0.26, 0.98, 0.85, 0.40)
-    colors[clr.ButtonHovered]          = ImVec4(38 / 255, 161 / 255, 139 / 255, 1.00)
-    colors[clr.ButtonActive]           = ImVec4(12 / 255, 100 / 255, 84 / 255, 1.00)
-    colors[clr.Header]                 = ImVec4(0.26, 0.98, 0.85, 0.31)
-    colors[clr.HeaderHovered]          = ImVec4(0.26, 0.98, 0.85, 0.80)
-    colors[clr.HeaderActive]           = ImVec4(0.26, 0.98, 0.85, 1.00)
-    colors[clr.Separator]              = colors[clr.Border]
-    colors[clr.SeparatorHovered]       = ImVec4(0.10, 0.75, 0.63, 0.78)
-    colors[clr.SeparatorActive]        = ImVec4(0.10, 0.75, 0.63, 1.00)
-    colors[clr.ResizeGrip]             = ImVec4(0.26, 0.98, 0.85, 0.25)
-    colors[clr.ResizeGripHovered]      = ImVec4(0.26, 0.98, 0.85, 0.67)
-    colors[clr.ResizeGripActive]       = ImVec4(0.26, 0.98, 0.85, 0.95)
-    colors[clr.PlotLines]              = ImVec4(0.61, 0.61, 0.61, 1.00)
-    colors[clr.PlotLinesHovered]       = ImVec4(1.00, 0.81, 0.35, 1.00)
-    colors[clr.TextSelectedBg]         = ImVec4(0.26, 0.98, 0.85, 0.35)
-    colors[clr.Text]                   = ImVec4(1.00, 1.00, 1.00, 1.00)
-    colors[clr.TextDisabled]           = ImVec4(0.50, 0.50, 0.50, 1.00)
-    colors[clr.WindowBg]               = ImVec4(0.06, 0.06, 0.06, 0.94)
-    colors[clr.ChildWindowBg]          = ImVec4(1.00, 1.00, 1.00, 0.00)
-    colors[clr.PopupBg]                = ImVec4(0.08, 0.08, 0.08, 0.94)
-    colors[clr.ComboBg]                = colors[clr.PopupBg]
-    colors[clr.Border]                 = ImVec4(0.43, 0.43, 0.50, 0.50)
-    colors[clr.BorderShadow]           = ImVec4(0.00, 0.00, 0.00, 0.00)
-    colors[clr.MenuBarBg]              = ImVec4(0.14, 0.14, 0.14, 1.00)
-    colors[clr.ScrollbarBg]            = ImVec4(0.02, 0.02, 0.02, 0.53)
-    colors[clr.ScrollbarGrab]          = ImVec4(0.31, 0.31, 0.31, 1.00)
-    colors[clr.ScrollbarGrabHovered]   = ImVec4(0.41, 0.41, 0.41, 1.00)
-    colors[clr.ScrollbarGrabActive]    = ImVec4(0.51, 0.51, 0.51, 1.00)
-    colors[clr.CloseButton]            = ImVec4(0.41, 0.41, 0.41, 0.50)
-    colors[clr.CloseButtonHovered]     = ImVec4(0.98, 0.39, 0.36, 1.00)
-    colors[clr.CloseButtonActive]      = ImVec4(0.98, 0.39, 0.36, 1.00)
-    colors[clr.PlotHistogram]          = ImVec4(0.90, 0.70, 0.00, 1.00)
-    colors[clr.PlotHistogramHovered]   = ImVec4(1.00, 0.60, 0.00, 1.00)
-    colors[clr.ModalWindowDarkening]   = ImVec4(0, 0, 0, 0.7)
+	colors[clr.Text]   = ImVec4(0.00, 0.00, 0.00, 0.51)
+	colors[clr.TextDisabled]   = ImVec4(0.24, 0.24, 0.24, 1.00)
+	colors[clr.WindowBg]              = ImVec4(1.00, 1.00, 1.00, 1.00)
+	colors[clr.ChildWindowBg]         = ImVec4(0.96, 0.96, 0.96, 1.00)
+	colors[clr.PopupBg]               = ImVec4(0.92, 0.92, 0.92, 1.00)
+	colors[clr.Border]                = ImVec4(0.86, 0.86, 0.86, 1.00)
+	colors[clr.BorderShadow]          = ImVec4(0.00, 0.00, 0.00, 0.00)
+	colors[clr.FrameBg]               = ImVec4(0.88, 0.88, 0.88, 1.00)
+	colors[clr.FrameBgHovered]        = ImVec4(0.82, 0.82, 0.82, 1.00)
+	colors[clr.FrameBgActive]         = ImVec4(0.76, 0.76, 0.76, 1.00)
+	colors[clr.TitleBg]               = ImVec4(0.00, 0.45, 1.00, 0.82)
+	colors[clr.TitleBgCollapsed]      = ImVec4(0.00, 0.45, 1.00, 0.82)
+	colors[clr.TitleBgActive]         = ImVec4(0.00, 0.45, 1.00, 0.82)
+	colors[clr.MenuBarBg]             = ImVec4(0.00, 0.37, 0.78, 1.00)
+	colors[clr.ScrollbarBg]           = ImVec4(0.00, 0.00, 0.00, 0.00)
+	colors[clr.ScrollbarGrab]         = ImVec4(0.00, 0.35, 1.00, 0.78)
+	colors[clr.ScrollbarGrabHovered]  = ImVec4(0.00, 0.33, 1.00, 0.84)
+	colors[clr.ScrollbarGrabActive]   = ImVec4(0.00, 0.31, 1.00, 0.88)
+	colors[clr.ComboBg]               = ImVec4(0.92, 0.92, 0.92, 1.00)
+	colors[clr.CheckMark]             = ImVec4(0.00, 0.49, 1.00, 0.59)
+	colors[clr.SliderGrab]            = ImVec4(0.00, 0.49, 1.00, 0.59)
+	colors[clr.SliderGrabActive]      = ImVec4(0.00, 0.39, 1.00, 0.71)
+	colors[clr.Button]                = ImVec4(0.00, 0.49, 1.00, 0.59)
+	colors[clr.ButtonHovered]         = ImVec4(0.00, 0.49, 1.00, 0.71)
+	colors[clr.ButtonActive]          = ImVec4(0.00, 0.49, 1.00, 0.78)
+	colors[clr.Header]                = ImVec4(0.00, 0.49, 1.00, 0.78)
+	colors[clr.HeaderHovered]         = ImVec4(0.00, 0.49, 1.00, 0.71)
+	colors[clr.HeaderActive]          = ImVec4(0.00, 0.49, 1.00, 0.78)
+	colors[clr.ResizeGrip]            = ImVec4(0.00, 0.39, 1.00, 0.59)
+	colors[clr.ResizeGripHovered]     = ImVec4(0.00, 0.27, 1.00, 0.59)
+	colors[clr.ResizeGripActive]      = ImVec4(0.00, 0.25, 1.00, 0.63)
+	colors[clr.CloseButton]           = ImVec4(0.00, 0.35, 0.96, 0.71)
+	colors[clr.CloseButtonHovered]    = ImVec4(0.00, 0.31, 0.88, 0.69)
+	colors[clr.CloseButtonActive]     = ImVec4(0.00, 0.25, 0.88, 0.67)
+	colors[clr.PlotLines]             = ImVec4(0.00, 0.39, 1.00, 0.75)
+	colors[clr.PlotLinesHovered]      = ImVec4(0.00, 0.39, 1.00, 0.75)
+	colors[clr.PlotHistogram]         = ImVec4(0.00, 0.39, 1.00, 0.75)
+	colors[clr.PlotHistogramHovered]  = ImVec4(0.00, 0.35, 0.92, 0.78)
+	colors[clr.TextSelectedBg]        = ImVec4(0.00, 0.47, 1.00, 0.59)
+	colors[clr.ModalWindowDarkening]  = ImVec4(0.20, 0.20, 0.20, 0.35)
+
 end
 apply_custom_style()
